@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <type_traits>
+#include <mutex>
 
 namespace sb
 {    
@@ -21,16 +22,16 @@ namespace sb
             return bundles_.find(bundleId) != bundles_.end();
         }
 
-        void addBundle(const char * bundleId, std::shared_ptr<BundleInstaceImpl> bundle)
+        void addBundle(const char * bundleId, std::shared_ptr<IBundleInstaceImpl> bundle)
         {
             bundles_[bundleId] = bundle;
         }
 
-        std::shared_ptr<BundleInstaceImpl> getBundle(const char * bundleId)
+        std::shared_ptr<IBundleInstaceImpl> getBundle(const char * bundleId)
         {
             auto bundle = bundles_.find(bundleId);
             if (bundle == bundles_.end())
-                return std::shared_ptr<BundleInstaceImpl>();
+                return std::shared_ptr<IBundleInstaceImpl>();
 
             return bundle->second;
         }
@@ -44,7 +45,7 @@ namespace sb
            }
         };
 
-        std::map<char const *, std::shared_ptr<BundleInstaceImpl> > bundles_;
+        std::map<char const *, std::shared_ptr<IBundleInstaceImpl> > bundles_;
     };
 
     template<class Providers, int N>
@@ -129,11 +130,12 @@ namespace sb
         {
             references_ = {
                 realm.getBundle(References::BundleId).get()
+                ...
             };
         }
 
         template<class Bundle>
-        BundleRef<Bundle> & getReference()
+        BundleRef<Bundle> getReference()
         {
             constexpr int referenceIndex = meta::TypeIndex<Bundle, TypeList<References...>>::value;
             static_assert(referenceIndex != meta::InvalidTypeIndex, "Bundle reference is not listed on bundle references list");
@@ -146,7 +148,7 @@ namespace sb
         }
 
     private:
-        std::vector<BundleInstaceImpl* > references_;
+        std::vector<IBundleInstaceImpl* > references_;
     };
 
     template<class ProvidersSetT, class BundleReferencesSetT>
@@ -176,7 +178,7 @@ namespace sb
         
 
     template<class BundleActivator>
-    class BundleInstaceImplT : public BundleInstaceImpl
+    class BundleInstaceImplT : public IBundleInstaceImpl
     {
         using ExportsTable = std::vector<std::shared_ptr<ExportRef>>;
         using ExternalsTable = std::vector<std::unique_ptr<ExternalsRef> >;
@@ -187,7 +189,7 @@ namespace sb
         using Exports = typename Bundle::Exports;
         using Externals = typename Bundle::Externals;
         using Providers = typename BundleActivator::Providers;
-        using References = typename BundleActivator::References;
+        using References = typename BundleActivator::References;        
 
         using BundleProvidersSet = ProvidersSet<Providers>;
         using BundleReferencesSet = ReferencesSet<References>;
@@ -197,6 +199,7 @@ namespace sb
             : externalsTable_(Externals::size)
             , bundleInjector_(bundleProvidersSet_, bundleReferencesSet_)
         {
+            onActivatedFuture_ = onActivatedPromise_.get_future().share();
         }
 
         virtual ExportRef & getExportRef(uint32_t exportIndex) override
@@ -218,7 +221,10 @@ namespace sb
             {
                 externalsTable_[externalsIndex] = std::move(externalsRef);
             }
-            throw std::logic_error("setExternalsRef: externalsIndex out of bounds");
+            else
+            {
+                throw std::logic_error("setExternalsRef: externalsIndex out of bounds");
+            }
         }
                
 
@@ -243,18 +249,40 @@ namespace sb
             throw std::logic_error("getExternal: externalsIndex out of bounds");
 
         }
-        
+
+        template<class Bundle>
+        BundleRef<Bundle> getReference()
+        {
+            return bundleReferencesSet_.getReference<Bundle>();
+        }
+
+        /*
+        Bundle lifecycle events
+        */
+        virtual void linkReferences(BundlesRealm& realm) override
+        {
+            bundleReferencesSet_.linkReferences(realm);
+        }
+        virtual void createServices()  override
+        {
+            bundleProvidersSet_.beforeBundleActivate (bundleInjector_);
+            createExportTalbe(Exports());
+        }
         virtual AsyncActivateResult activate() override;
 
-        virtual void linkWithReferencedBundles(BundlesRealm&);
-;
+        virtual boost::shared_future<IBundleInstaceImpl*> onActiveFuture() override
+        {
+            std::lock_guard<std::mutex> lock(futureCopyMutex_);
+            auto onActivatedFutureCopy = onActivatedFuture_;
+            return onActivatedFutureCopy;
+        }
 
     private:
 
         template<class T>
         std::shared_ptr<ExportRef> createExportRef()
         {
-            return std::make_shared<ExportRefT<T>>(bundleInjector_.create<T>().get());
+            return std::make_shared<ExportRefT<T>>(bundleInjector_.create<T>().getUnsafe());
         }
 
 
@@ -273,6 +301,10 @@ namespace sb
         BundleReferencesSet bundleReferencesSet_;
         BundleInjector bundleInjector_;
         BundleActivator bundleActivator_;
+
+        boost::promise<IBundleInstaceImpl*> onActivatedPromise_;
+        boost::shared_future<IBundleInstaceImpl*> onActivatedFuture_;
+        std::mutex futureCopyMutex_;
     };
 
     template<class BundleActivator>
@@ -286,22 +318,20 @@ namespace sb
         }
 
         template<class T>
-        ServiceRef<T> getService()
+        T& getService()
         {
-            return bundleInstaceImpl_->getService<T>();
+            return *bundleInstaceImpl_->getService<T>().getUnsafe();
         }
 
         template<class External>
         External & getExternal();
 
-        template<class Bundle, class ...Args>
-        void importBundle(Args&&... args);
-
-        template<class Service>
-        std::shared_ptr<Service> NewService() const;
-
-        template<class Service>
-        void ProvideInstance(std::shared_ptr<Service>) const;
+        template<class Bundle>
+        boost::shared_future< BundleRef<Bundle> > onActive()
+        {
+            return bundleInstaceImpl_->getReference<Bundle>()
+                .onActive();
+        }        
 
     private:
         BundleInstaceImpl * bundleInstaceImpl_;
@@ -310,12 +340,12 @@ namespace sb
     template<class BundleActivator>
     AsyncActivateResult BundleInstaceImplT<BundleActivator>::activate()
     {
-        bundleProvidersSet_.beforeBundleActivate (bundleInjector_);
-        createExportTalbe(Exports());
         return bundleActivator_.activate(ThisBundle<BundleActivator>(this))
-            .then([this](auto)
+            .then([this](auto result)
             {         
+                result.get();
                 bundleProvidersSet_.afterBundleActivate();
+                onActivatedPromise_.set_value(this);
             });
     }
 

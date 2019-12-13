@@ -17,7 +17,8 @@ class ServiceRef
 {
 public:
     ServiceRef(std::shared_ptr<T> service, ServiceState* state)
-        : service_(service) {}
+        : service_(service)
+        , state_(state) {}
 
     T* operator->()
     {
@@ -30,6 +31,11 @@ public:
         return service_.get();
     }
 
+    T * getUnsafe()
+    {        
+        return service_.get();
+    }
+
     bool isReady()
     {
         return !state_ || state_->isReady;
@@ -37,6 +43,7 @@ public:
 
     T& operator*()
     {
+        assert (isReady());
         return *service_;
     }
 

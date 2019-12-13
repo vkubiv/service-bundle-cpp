@@ -12,13 +12,13 @@ namespace sb
     {
     public:
         using Exports = typename Bundle::Exports;
-        using Externals = typename Bundle::Externals;
+        using Externals = typename Bundle::Externals;        
 
-        BundleRef(BundleInstaceImpl* impl)
+        BundleRef(IBundleInstaceImpl* impl)
             : impl_(impl) {}
 
         template<class T>
-        T& getService()
+        T& getService() const
         {
             constexpr int exportIndex = meta::TypeIndex<T, Exports>::value;
             static_assert(exportIndex != meta::InvalidTypeIndex && exportIndex >= 0, "Type is not listed on bundle export list");
@@ -27,7 +27,15 @@ namespace sb
             auto & typedefRef = dynamic_cast<ExportRefT<T>&>(ref);
             return *typedefRef.ref;
         }
+
+        boost::shared_future< BundleRef<Bundle> > onActive()
+        {
+            return impl_->onActiveFuture().then([](auto impl) {
+                return BundleRef<Bundle>(impl.get());
+            });
+        }
+
     private:
-        BundleInstaceImpl*  impl_;
+        IBundleInstaceImpl*  impl_;
     };
 }

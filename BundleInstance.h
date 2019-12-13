@@ -36,13 +36,20 @@ namespace sb
         T ref;
     };
 
-    class BundleInstaceImpl {
+    class IBundleInstaceImpl {
     public:
-        virtual ~BundleInstaceImpl() {}
+
+        virtual ~IBundleInstaceImpl() {}
         virtual ExportRef & getExportRef(uint32_t exportIndex) = 0;
         virtual void setExternalsRef(uint32_t exportIndex, std::unique_ptr<ExternalsRef>) = 0;
 
-        virtual void linkWithReferencedBundles(BundlesRealm&) = 0;
+        /*
+        Bundle lifecycle events
+        */
+        virtual void linkReferences(BundlesRealm&) = 0;
+        virtual void createServices() = 0;
         virtual AsyncActivateResult activate() = 0;
+
+        virtual boost::shared_future<IBundleInstaceImpl*> onActiveFuture() = 0;
     };
 }

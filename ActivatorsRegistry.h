@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ServiceBundle.h"
+#include "BundleInstaceImpl.h"
 #include <functional>
 #include <memory>
 #include <map>
@@ -9,7 +10,7 @@
 namespace sb
 {
 
-using ActivatorFactory = std::function< std::unique_ptr<BundleInstaceImpl> ()>;
+using ActivatorFactory = std::function< std::unique_ptr<IBundleInstaceImpl> ()>;
 
 class ActivatorsRegistry
 {
@@ -28,10 +29,12 @@ template<class Activator>
 bool ExportBundleActivator()
 {
     ActivatorsRegistry::Instance()
-        .registerFactory(Activator::BundleId, []()
-    {
-        return std::make_unique<BundleInstaceImplT<Activator>>();
-    });
+        .registerFactory(Activator::BundleId, []() 
+        {
+            auto p = new BundleInstaceImplT<Activator>();
+            std::unique_ptr<IBundleInstaceImpl> ptr (p);
+            return ptr;
+        });
 
     return true;
 }
