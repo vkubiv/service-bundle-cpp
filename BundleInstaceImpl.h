@@ -9,6 +9,7 @@
 #include <memory>
 #include <type_traits>
 #include <mutex>
+#include <map>
 
 namespace sb
 {    
@@ -270,7 +271,7 @@ namespace sb
         }
         virtual AsyncActivateResult activate() override;
 
-        virtual boost::shared_future<IBundleInstaceImpl*> onActiveFuture() override
+        virtual std::shared_future<IBundleInstaceImpl*> onActiveFuture() override
         {
             std::lock_guard<std::mutex> lock(futureCopyMutex_);
             auto onActivatedFutureCopy = onActivatedFuture_;
@@ -282,7 +283,7 @@ namespace sb
         template<class T>
         std::shared_ptr<ExportRef> createExportRef()
         {
-            return std::make_shared<ExportRefT<T>>(bundleInjector_.create<T>().getUnsafe());
+            return std::make_shared<ExportRefT<T>>(bundleInjector_.create<T>());
         }
 
 
@@ -302,8 +303,8 @@ namespace sb
         BundleInjector bundleInjector_;
         BundleActivator bundleActivator_;
 
-        boost::promise<IBundleInstaceImpl*> onActivatedPromise_;
-        boost::shared_future<IBundleInstaceImpl*> onActivatedFuture_;
+        std::promise<IBundleInstaceImpl*> onActivatedPromise_;
+        std::shared_future<IBundleInstaceImpl*> onActivatedFuture_;
         std::mutex futureCopyMutex_;
     };
 
@@ -327,7 +328,7 @@ namespace sb
         External & getExternal();
 
         template<class Bundle>
-        boost::shared_future< BundleRef<Bundle> > onActive()
+        std::shared_future< BundleRef<Bundle> > onActive()
         {
             return bundleInstaceImpl_->getReference<Bundle>()
                 .onActive();
@@ -340,13 +341,11 @@ namespace sb
     template<class BundleActivator>
     AsyncActivateResult BundleInstaceImplT<BundleActivator>::activate()
     {
-        return bundleActivator_.activate(ThisBundle<BundleActivator>(this))
-            .then([this](auto result)
-            {         
-                result.get();
-                bundleProvidersSet_.afterBundleActivate();
-                onActivatedPromise_.set_value(this);
-            });
+        return std::async(std::launch::deferred, [this](){
+            bundleActivator_.activate(ThisBundle<BundleActivator>(this)).get();
+            bundleProvidersSet_.afterBundleActivate();
+            onActivatedPromise_.set_value(this);
+        });
     }
 
     template<class T>
@@ -355,14 +354,7 @@ namespace sb
         using Bundle = T;
         using Exports = typename Bundle::Exports;
         using Externals = typename Bundle::Externals;        
-        static constexpr auto BundleId = Bundle::BundleId;        
-        
-        AsyncActivateResult ready()
-        {
-            boost::promise<void> readyPromiss;
-            readyPromiss.set_value();
-            return readyPromiss.get_future();
-        }
+        static constexpr auto BundleId = Bundle::BundleId;       
     };
 
     //BundlesRegistry

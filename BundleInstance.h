@@ -1,14 +1,28 @@
 #pragma once
 
 
-#define BOOST_THREAD_VERSION 4
-#include <boost/thread/future.hpp>
+#include <future>
 
 namespace sb
 {
 	class BundlesRealm;
 
-	using AsyncActivateResult = boost::future<void>;
+	using AsyncActivateResult = std::future<void>;
+
+    inline AsyncActivateResult make_ready_future ()
+    {
+        std::promise<void> readyPromiss;
+        readyPromiss.set_value();
+        return readyPromiss.get_future();
+    }
+
+    template<class T, class E>
+    AsyncActivateResult make_exceptional_future(E ex)
+    {
+        std::promise<T> readyPromiss;
+        readyPromiss.set_exception(ex);
+        return readyPromiss.get_future();
+    }
 
     struct ExportRef {
         virtual ~ExportRef() = 0 {}
@@ -17,10 +31,10 @@ namespace sb
     template<class T>
     struct ExportRefT : public ExportRef {
 
-        ExportRefT(T* the_ref)
+        ExportRefT(ServiceRef<T> the_ref)
             : ref(the_ref) {}
 
-        T* ref;
+        ServiceRef<T> ref;
     };
 
     struct ExternalsRef {
@@ -50,6 +64,6 @@ namespace sb
         virtual void createServices() = 0;
         virtual AsyncActivateResult activate() = 0;
 
-        virtual boost::shared_future<IBundleInstaceImpl*> onActiveFuture() = 0;
+        virtual std::shared_future<IBundleInstaceImpl*> onActiveFuture() = 0;
     };
 }

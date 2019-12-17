@@ -14,7 +14,7 @@ namespace sb
         using Exports = typename Bundle::Exports;
         using Externals = typename Bundle::Externals;        
 
-        BundleRef(IBundleInstaceImpl* impl)
+        explicit BundleRef(IBundleInstaceImpl* impl = 0)
             : impl_(impl) {}
 
         template<class T>
@@ -28,14 +28,14 @@ namespace sb
             return *typedefRef.ref;
         }
 
-        boost::shared_future< BundleRef<Bundle> > onActive()
+        std::future< BundleRef<Bundle> > onActive()
         {
-            return impl_->onActiveFuture().then([](auto impl) {
-                return BundleRef<Bundle>(impl.get());
+            return std::async(std::launch::deferred, [impl = impl_]() -> BundleRef<Bundle> {
+                return BundleRef<Bundle>(impl->onActiveFuture().get());
             });
         }
 
     private:
-        IBundleInstaceImpl*  impl_;
+        IBundleInstaceImpl* impl_;
     };
 }
