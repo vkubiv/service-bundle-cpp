@@ -16,6 +16,10 @@ template<class T>
 class ServiceRef
 {
 public:
+
+	ServiceRef()
+		: state_(0) {}
+
     ServiceRef(std::shared_ptr<T> service, ServiceState* state)
         : service_(service)
         , state_(state) {}

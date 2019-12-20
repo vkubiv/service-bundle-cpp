@@ -18,14 +18,14 @@ namespace sb
             : impl_(impl) {}
 
         template<class T>
-        T& getService() const
+        ServiceRef<T> getService() const
         {
             constexpr int exportIndex = meta::TypeIndex<T, Exports>::value;
             static_assert(exportIndex != meta::InvalidTypeIndex && exportIndex >= 0, "Type is not listed on bundle export list");
 
             auto & ref = impl_->getExportRef(exportIndex);
             auto & typedefRef = dynamic_cast<ExportRefT<T>&>(ref);
-            return *typedefRef.ref;
+            return typedefRef.ref;
         }
 
         std::future< BundleRef<Bundle> > onActive()

@@ -22,7 +22,7 @@ struct any_type {
 
     template<class T>
     constexpr operator BundleRef<T>() {
-        return injector_.template getReference<T>();
+        return injector_.template getBundleRef<T>();
     }
 
     any_type(TInjector & injector)
