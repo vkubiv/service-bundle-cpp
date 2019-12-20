@@ -25,7 +25,7 @@ namespace sb
     }
 
     struct ExportRef {
-        virtual ~ExportRef() = 0 {}
+        virtual ~ExportRef() {}
     };
 
     template<class T>
@@ -38,7 +38,7 @@ namespace sb
     };
 
     struct ExternalsRef {
-        virtual ~ExternalsRef() = 0 {}
+        virtual ~ExternalsRef() {}
     };
 
     template<class T>

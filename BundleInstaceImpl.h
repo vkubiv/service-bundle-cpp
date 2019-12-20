@@ -4,7 +4,7 @@
 #include "ServiceRef.h"
 #include "BundleRef.h"
 #include "BundleInstance.h"
-#include "meta/Constructor.h"
+#include "meta/constructor.h"
 #include <vector>
 #include <memory>
 #include <type_traits>
