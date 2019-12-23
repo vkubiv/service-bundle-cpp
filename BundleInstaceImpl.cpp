@@ -1,5 +1,3 @@
 #include "BundleInstaceImpl.h"
 
-namespace sb
-{
-}
+namespace sb {}
