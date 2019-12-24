@@ -1,6 +1,7 @@
 #pragma once
 
 #include <future>
+#include "ServiceRef.h"
 
 namespace sb {
 class BundlesRealm;
