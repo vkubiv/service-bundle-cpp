@@ -15,8 +15,8 @@ struct TypeIndexImpl
   };
 };
 
-template<class T, class... TypeList>
-struct TypeIndexImpl<T, T, TypeList...>
+template<class T>
+struct TypeIndexImpl<T, T>
 {
   enum
   {
