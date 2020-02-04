@@ -39,4 +39,5 @@ public:
 private:
   IBundleInstaceImpl* impl_;
 };
+
 } // namespace sb

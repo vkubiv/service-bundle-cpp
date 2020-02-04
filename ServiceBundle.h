@@ -45,6 +45,35 @@ private:
   ServiceState serviceState_;
 };
 
+template<class I, class Imp = I>
+struct ImmortalProvider
+{
+  using Interface = I;
+  using Implementation = Imp;
+
+  template<class InjectionContext>
+  ServiceRef<Interface> get(InjectionContext& injectionContext)
+  {
+    if (!instance_)
+      instance_ =
+        std::shared_ptr<Interface>(meta::ConstructType<Implementation>(injectionContext), [](auto) {});
+
+    return ServiceRef<Interface>(instance_, &serviceState_);
+  }
+
+  template<class InjectionContext>
+  void beforeBundleActivate(InjectionContext& injectionContext)
+  {
+    get(injectionContext);
+  }
+
+  void afterBundleActivate() { serviceState_.isReady = true; }
+
+private:
+  std::shared_ptr<Interface> instance_;
+  ServiceState serviceState_;
+};
+
 template<class Interface>
 class ProvideOnActivate
 {};
